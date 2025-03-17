@@ -228,8 +228,8 @@ class NALDAVideoRecorderGUI:
                 self.out.write(recording_frame)
                 self.frame_count += 1  # 저장된 프레임 수 증가
                 
-                # 녹화 시간 업데이트
-                self.current_recording_time = self.frame_count / self.fps
+                # 녹화 시간 업데이트 - 실제 경과 시간 사용
+                self.current_recording_time = time.time() - self.recording_start_time
                 minutes = int(self.current_recording_time) // 60
                 seconds = int(self.current_recording_time) % 60
                 self.status_label.configure(text=f"녹화 중... {minutes:02d}:{seconds:02d}", foreground=self.colors['danger'])
@@ -310,8 +310,11 @@ class NALDAVideoRecorderGUI:
         if not self.recording:
             # 녹화 시작
             timestamp = time.strftime("%Y%m%d_%H%M%S")
-            filename = os.path.join(self.output_dir, f"NALDA_recording_{timestamp}.avi")
-            self.out = cv2.VideoWriter(filename, self.fourcc, self.fps, self.size)
+            self.filename = os.path.join(self.output_dir, f"NALDA_recording_{timestamp}.avi")
+            
+            # 임시 비디오 파일 (원본 FPS로 저장)
+            self.temp_filename = os.path.join(self.output_dir, f"NALDA_temp_{timestamp}.avi")
+            self.out = cv2.VideoWriter(self.temp_filename, self.fourcc, self.fps, self.size)
             
             if not self.out.isOpened():
                 self.show_error("녹화를 시작할 수 없습니다.")
@@ -322,7 +325,7 @@ class NALDAVideoRecorderGUI:
             self.current_recording_time = 0
             self.frame_count = 0  # 프레임 수 초기화
             
-            print(f"녹화 시작: {filename} (카메라 FPS: {self.cap_fps}, 녹화 FPS: {self.fps})")
+            print(f"녹화 시작: {self.filename} (카메라 FPS: {self.cap_fps}, 녹화 FPS: {self.fps})")
             self.recording = True
             self.record_button.configure(text="녹화 중지")
             self.status_label.configure(text="녹화 중...", foreground=self.colors['danger'])
@@ -332,8 +335,51 @@ class NALDAVideoRecorderGUI:
                 self.out.release()
                 self.out = None
                 
-                # 녹화 정보 출력
-                print(f"녹화가 중지되었습니다. (총 녹화 시간: {self.current_recording_time:.2f}초)")
+                # 실제 녹화 시간 계산
+                real_recording_time = time.time() - self.recording_start_time
+                
+                # 실제 FPS 계산 (프레임 수 / 실제 녹화 시간)
+                real_fps = self.frame_count / real_recording_time if real_recording_time > 0 else self.fps
+                
+                print(f"녹화가 중지되었습니다. (총 프레임: {self.frame_count}, 총 녹화 시간: {real_recording_time:.2f}초, 실제 FPS: {real_fps:.2f})")
+                
+                # 실제 FPS로 비디오 파일 다시 생성
+                print(f"올바른 재생 시간으로 비디오 파일 생성 중...")
+                try:
+                    # 임시 파일 열기
+                    cap = cv2.VideoCapture(self.temp_filename)
+                    if not cap.isOpened():
+                        print(f"임시 파일을 열 수 없습니다: {self.temp_filename}")
+                        return
+                    
+                    # 새 파일 생성 (올바른 FPS로)
+                    out = cv2.VideoWriter(self.filename, self.fourcc, real_fps, self.size)
+                    if not out.isOpened():
+                        print(f"출력 파일을 생성할 수 없습니다: {self.filename}")
+                        return
+                    
+                    # 모든 프레임 복사
+                    while True:
+                        ret, frame = cap.read()
+                        if not ret:
+                            break
+                        out.write(frame)
+                    
+                    # 정리
+                    cap.release()
+                    out.release()
+                    
+                    # 임시 파일 삭제
+                    if os.path.exists(self.temp_filename):
+                        os.remove(self.temp_filename)
+                        print(f"임시 파일 삭제: {self.temp_filename}")
+                    
+                    print(f"비디오 파일 생성 완료: {self.filename} (FPS: {real_fps:.2f})")
+                    
+                except Exception as e:
+                    print(f"비디오 파일 변환 중 오류 발생: {e}")
+                
+                self.current_recording_time = real_recording_time
             
             self.recording = False
             self.record_button.configure(text="녹화 시작")
