@@ -1,5 +1,5 @@
 # NALDA 비디오 녹화기
-
+![image](https://github.com/user-attachments/assets/109e6b22-696f-4f37-9e71-012cff826bfe)
 NALDA 비디오 녹화기는 Python과 OpenCV를 이용한 간편한 웹캠 녹화 프로그램입니다. 사용자 친화적인 인터페이스와 다양한 필터 기능을 제공합니다.
 
 ## 주요 기능
@@ -70,6 +70,4 @@ python main.py
 ## 주의사항
 - 카메라가 연결되어 있어야 합니다.
 - 녹화 중 프로그램을 갑자기 종료하면 파일이 손상될 수 있습니다.
-
-- ![image](https://github.com/user-attachments/assets/109e6b22-696f-4f37-9e71-012cff826bfe)
 
