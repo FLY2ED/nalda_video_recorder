@@ -29,14 +29,15 @@ class NALDAVideoRecorderGUI:
         
         # 비디오 설정
         self.cap_fps = self.cap.get(cv2.CAP_PROP_FPS)  # 카메라의 실제 FPS (참고용)
-        self.fps = 60.0  # 녹화 FPS를 60으로 고정
+        self.fps = self.cap_fps if self.cap_fps > 0 else 60.0  # 카메라의 실제 FPS 사용, 0 이하일 경우 60으로 설정
         self.frame_interval = int(1000/self.fps)  # 프레임 간격 (밀리초)
         self.fourcc = cv2.VideoWriter_fourcc(*'DIVX')  # DIVX 코덱 사용
         self.out = None
         
         # 프레임 타이밍 관련 변수
-        self.recording_start_time = 0   # 녹화 시작 시간
-        self.current_recording_time = 0 # 현재 녹화 시간
+        self.recording_start_time = time.time()
+        self.current_recording_time = 0
+        self.frame_count = 0  # 프레임 수 초기화
         
         # 출력 디렉토리 생성
         self.output_dir = "recordings"
@@ -211,41 +212,45 @@ class NALDAVideoRecorderGUI:
             # 카메라에서 프레임 읽기
             ret, frame = self.cap.read()
             
-            if ret:
-                # 원본 프레임 복사 (녹화용)
-                recording_frame = frame.copy()
+            if not ret:
+                print("프레임을 읽을 수 없습니다. 프레임이 손실되었습니다.")
+                return
+            
+            # 원본 프레임 복사 (녹화용)
+            recording_frame = frame.copy()
+            
+            # 필터 적용
+            frame = self.apply_filters(frame, for_display=True)  # UI 요소 포함
+            recording_frame = self.apply_filters(recording_frame, for_display=False)  # UI 요소 제외
+            
+            # 녹화 중이면 저장
+            if self.recording and self.out is not None:
+                self.out.write(recording_frame)
+                self.frame_count += 1  # 저장된 프레임 수 증가
                 
-                # 필터 적용
-                frame = self.apply_filters(frame, for_display=True)  # UI 요소 포함
-                recording_frame = self.apply_filters(recording_frame, for_display=False)  # UI 요소 제외
-                
-                # 녹화 중이면 저장
-                if self.recording and self.out is not None:
-                    self.out.write(recording_frame)
-                    
-                    # 녹화 시간 업데이트
-                    self.current_recording_time = time.time() - self.recording_start_time
-                    minutes = int(self.current_recording_time) // 60
-                    seconds = int(self.current_recording_time) % 60
-                    self.status_label.configure(text=f"녹화 중... {minutes:02d}:{seconds:02d}", foreground=self.colors['danger'])
-                
-                # OpenCV BGR에서 RGB로 변환
-                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                
-                # Tkinter에 표시하기 위해 PIL로 변환
-                pil_img = Image.fromarray(frame_rgb)
-                
-                # 화면 크기에 맞게 리사이즈
-                display_width = 800
-                display_height = int(display_width * (self.frame_height / self.frame_width))
-                pil_img = pil_img.resize((display_width, display_height), Image.LANCZOS)
-                
-                # PIL에서 ImageTk로 변환
-                img_tk = ImageTk.PhotoImage(image=pil_img)
-                
-                # 라벨에 이미지 업데이트
-                self.video_label.configure(image=img_tk)
-                self.video_label.image = img_tk  # 참조 유지
+                # 녹화 시간 업데이트
+                self.current_recording_time = self.frame_count / self.fps
+                minutes = int(self.current_recording_time) // 60
+                seconds = int(self.current_recording_time) % 60
+                self.status_label.configure(text=f"녹화 중... {minutes:02d}:{seconds:02d}", foreground=self.colors['danger'])
+            
+            # OpenCV BGR에서 RGB로 변환
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            
+            # Tkinter에 표시하기 위해 PIL로 변환
+            pil_img = Image.fromarray(frame_rgb)
+            
+            # 화면 크기에 맞게 리사이즈
+            display_width = 800
+            display_height = int(display_width * (self.frame_height / self.frame_width))
+            pil_img = pil_img.resize((display_width, display_height), Image.LANCZOS)
+            
+            # PIL에서 ImageTk로 변환
+            img_tk = ImageTk.PhotoImage(image=pil_img)
+            
+            # 라벨에 이미지 업데이트
+            self.video_label.configure(image=img_tk)
+            self.video_label.image = img_tk  # 참조 유지
         except Exception as e:
             print(f"프레임 업데이트 중 오류: {e}")
             
@@ -315,8 +320,9 @@ class NALDAVideoRecorderGUI:
             # 녹화 타이밍 초기화
             self.recording_start_time = time.time()
             self.current_recording_time = 0
+            self.frame_count = 0  # 프레임 수 초기화
             
-            print(f"녹화 시작: {filename} (FPS: {self.fps})")
+            print(f"녹화 시작: {filename} (카메라 FPS: {self.cap_fps}, 녹화 FPS: {self.fps})")
             self.recording = True
             self.record_button.configure(text="녹화 중지")
             self.status_label.configure(text="녹화 중...", foreground=self.colors['danger'])
