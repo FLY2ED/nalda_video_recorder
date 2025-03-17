@@ -70,3 +70,6 @@ python main.py
 ## 주의사항
 - 카메라가 연결되어 있어야 합니다.
 - 녹화 중 프로그램을 갑자기 종료하면 파일이 손상될 수 있습니다.
+
+- ![image](https://github.com/user-attachments/assets/109e6b22-696f-4f37-9e71-012cff826bfe)
+
